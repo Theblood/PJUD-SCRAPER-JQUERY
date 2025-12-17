@@ -95,8 +95,8 @@ Busca solo en tribunales de una región específica:
 ### Requisitos Previos
 
 1. Navegador moderno (Chrome, Firefox, Edge)
-2. Cuenta activa en [Oficina Judicial Virtual](https://oficinajudicialvirtual.pjud.cl)
-3. Sesión iniciada en el portal
+2. Ir a [Oficina Judicial Virtual](https://oficinajudicialvirtual.pjud.cl/includes/sesion-consultaunificada.php)
+
 
 ### Pasos
 
