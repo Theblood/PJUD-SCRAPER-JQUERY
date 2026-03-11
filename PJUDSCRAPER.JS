@@ -5,7 +5,7 @@
   const CONCURRENCY       = 3;
   const MAX_RETRIES       = 5;
   const RETRY_BASE        = 500;
-  const RECAPTCHA_SITEKEY = '6LelLWkUAAAAANPDMkBxllo_QJe5RQVpg6V2pIDt';
+  const RECAPTCHA_SITEKEY = Object.keys(window.___grecaptcha_cfg.auto_render_clients)[0];
 
   // ════════════════════════════════════════════════════════════════
   // TRIBUNALES HARDCODEADOS (no depende del DOM)
@@ -570,13 +570,20 @@
   // ════════════════════════════════════════════════════════════════
   // REQUEST DETALLE
   // ════════════════════════════════════════════════════════════════
-async function fetchDetalle(jwt) {
-  const token = await getToken('validate_captcha_detcau_penal');
-  const params = new URLSearchParams({ dtaCausa: jwt, tokenCaptcha: token });
+  async function fetchDetalle(jwt, esUnificado = false) {
+    // Elegir endpoint y action según el tipo de causa
+    const endpoint = esUnificado
+      ? `https://oficinajudicialvirtual.pjud.cl/${ADIR}/unificado/modal/causaUnificado.php`
+      : `https://oficinajudicialvirtual.pjud.cl/${ADIR}/penal/modal/causaPenal.php`;
 
-  const html = await fetch(
-    `https://oficinajudicialvirtual.pjud.cl/${ADIR}/penal/modal/causaPenal.php`,
-    {
+    const action = esUnificado
+      ? 'validate_captcha_detcau_unif'   // action del unificado
+      : 'validate_captcha_detcau_penal'; // action del penal
+
+    const token = await getToken(action);
+    const params = new URLSearchParams({ dtaCausa: jwt, tokenCaptcha: token });
+
+    const html = await fetch(endpoint, {
       method: 'POST', credentials: 'include', mode: 'cors',
       headers: {
         'Accept': '*/*',
@@ -585,11 +592,10 @@ async function fetchDetalle(jwt) {
         'sec-fetch-dest': 'empty', 'sec-fetch-mode': 'cors', 'sec-fetch-site': 'same-origin'
       },
       body: params.toString()
-    }
-  ).then(r => r.text()).catch(() => null);
+    }).then(r => r.text()).catch(() => null);
 
-  return html ? parsearDetalle(html) : null;
-}
+    return html ? parsearDetalle(html, esUnificado) : null;
+  }
 
 
   // ════════════════════════════════════════════════════════════════
@@ -613,6 +619,7 @@ async function fetchDetalle(jwt) {
       const onclick = link.getAttribute('onClick') || link.getAttribute('onclick') || '';
       const jwt = onclick.match(/'(eyJ[^']+)'/)?.[1] || null;
       const rit = cells[1]?.textContent?.trim();
+      const esUnificado = onclick.includes('detalleCausaPenalUnificado');
       if (!rit || rit === 'Rit' || rit === 'Rol') return;
       causas.push({
         rit,
@@ -622,6 +629,7 @@ async function fetchDetalle(jwt) {
         fecha_ingreso: cells[5]?.textContent?.trim(),
         estado:        cells[6]?.textContent?.trim(),
         jwt,
+        esUnificado,
         detalle: null
       });
     });
@@ -638,50 +646,62 @@ async function fetchDetalle(jwt) {
   // PARSER DETALLE — extrae litigantes y relaciones del modal
   // ════════════════════════════════════════════════════════════════
 
-function parsearDetalle(html) {
+function parsearDetalle(html, esUnificado = false) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
 
-  // ── Info general ─────────────────────────────────────────────
-  let rit = '', ruc = '', fechaIngreso = '', estadoActual = '',
-      etapa = '', formaInicio = '', caratulado = '', tribunal = '';
+  let procedimiento = '', etapa = '', formaInicio = '', estadoActual = '',
+      rit = '', ruc = '', caratulado = '', tribunal = '';
 
   doc.querySelectorAll('table.table-titulos td').forEach(td => {
-    const txt = td.textContent.trim();
-    const get = (key) => {
-      const el = td.querySelector('strong');
-      if (!el) return null;
-      const label = el.textContent.trim();
-      if (!label.startsWith(key)) return null;
-      // valor = todo el texto del td menos el strong
-      return txt.replace(label, '').trim().replace(/^:\s*/, '');
-    };
-    rit          = get('RIT')            || rit;
-    ruc          = get('RUC')            || ruc;
-    fechaIngreso = get('Fecha Ingreso')  || fechaIngreso;
-    estadoActual = get('Estado Actual')  || estadoActual;
-    etapa        = get('Etapa')          || etapa;
-    formaInicio  = get('Forma Inicio')   || formaInicio;
-    caratulado   = get('Caratulado')     || caratulado;
-    tribunal     = get('Tribunal')       || tribunal;
+    const strong = td.querySelector('strong');
+    if (!strong) return;
+    const label = strong.textContent.trim();
+    const valor = td.textContent.replace(label, '').trim().replace(/^:\s*/, '');
+    if (label.startsWith('RIT'))           rit          = valor;
+    if (label.startsWith('RUC'))           ruc          = valor;
+    if (label.startsWith('Fecha Ingreso')) fechaIngreso = valor;
+    if (label.startsWith('Estado Actual')) estadoActual = valor;
+    if (label.startsWith('Etapa'))         etapa        = valor;
+    if (label.startsWith('Forma Inicio'))  formaInicio  = valor;
+    if (label.startsWith('Caratulado'))    caratulado   = valor;
+    if (label.startsWith('Tribunal') && !label.startsWith('Tribunal Origen')) tribunal = valor;
+    if (label.startsWith('Procedimiento')) procedimiento = valor;
   });
 
-  // ── Litigantes — #litigantesPen ──────────────────────────────
-  const litigantes = [];
-  const litTab = doc.querySelector('#litigantesPen table');
-  if (litTab) {
-    litTab.querySelectorAll('tbody tr').forEach(row => {
-      const cells = row.querySelectorAll('td');
-      if (cells.length < 2) return;
-      const tipo   = cells[0]?.textContent?.trim();
-      const nombre = cells[1]?.textContent?.trim();
-      const situacion = cells[2]?.textContent?.trim() || '';
-      if (nombre) litigantes.push({ tipo, nombre, situacion });
-    });
-  }
+  // ── Litigantes ───────────────────────────────────────────────
+  // Penal usa #litigantesPen, Unificado usa #litigantes
+  const litSelector = esUnificado ? '#litigantes table' : '#litigantesPen table';
+  const litigantes  = [];
+  const litTab = doc.querySelector(litSelector);
+ if (litTab) {
+  litTab.querySelectorAll('tbody tr').forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length < 2) return;
 
-  // ── Relaciones — #relacionesPen ──────────────────────────────
-  const relaciones = [];
-  const relTab = doc.querySelector('#relacionesPen table');
+    let tipo, nombre, situacion;
+
+    if (esUnificado) {
+      // Unificado: Participantes | Persona | Nombre o Razón Social
+      tipo      = cells[0]?.textContent?.trim();
+      // cells[1] es "Natural" o "Jurídica" — no nos interesa
+      nombre    = cells[2]?.textContent?.trim();
+      situacion = ''; // el unificado no tiene columna de situación libertad
+    } else {
+      // Penal: Tipo | Nombre | Situación Libertad
+      tipo      = cells[0]?.textContent?.trim();
+      nombre    = cells[1]?.textContent?.trim();
+      situacion = cells[2]?.textContent?.trim() || '';
+    }
+
+    if (nombre) litigantes.push({ tipo, nombre, situacion });
+  });
+}
+
+  // ── Relaciones ───────────────────────────────────────────────
+  // Penal usa #relacionesPen, Unificado usa #relaciones
+  const relSelector = esUnificado ? '#relaciones table' : '#relacionesPen table';
+  const relaciones  = [];
+  const relTab = doc.querySelector(relSelector);
   if (relTab) {
     relTab.querySelectorAll('tbody tr').forEach(row => {
       const cells = row.querySelectorAll('td');
@@ -695,25 +715,31 @@ function parsearDetalle(html) {
     });
   }
 
-  // ── Historia — #historiaPen ───────────────────────────────────
-  const historia = [];
-  const histTab = doc.querySelector('#historiaPen table');
+  // ── Historia ─────────────────────────────────────────────────
+  // Penal usa #historiaPen, Unificado usa #historia
+  const histSelector = esUnificado ? '#historia table' : '#historiaPen table';
+  const historia     = [];
+  const histTab = doc.querySelector(histSelector);
   if (histTab) {
     histTab.querySelectorAll('tbody tr').forEach(row => {
       const cells = row.querySelectorAll('td');
-      if (cells.length < 6) return;
+      if (cells.length < 5) return;
       historia.push({
-        tipo:               cells[2]?.textContent?.trim(),
-        observacion:        cells[3]?.textContent?.trim(),
-        fecha:              cells[4]?.textContent?.trim(),
-        estado:             cells[5]?.textContent?.trim(),
-        fecha_cambio_estado:cells[6]?.textContent?.trim() || ''
+        tipo:                cells[2]?.textContent?.trim(),
+        observacion:         cells[3]?.textContent?.trim(),
+        fecha:               cells[4]?.textContent?.trim(),
+        estado:              cells[5]?.textContent?.trim() || '',
+        fecha_cambio_estado: cells[6]?.textContent?.trim() || ''
       });
     });
   }
 
-  return { rit, ruc, fechaIngreso, estadoActual, etapa, formaInicio,
-           caratulado, tribunal, litigantes, relaciones, historia };
+  return {
+    rit, ruc, caratulado, tribunal, procedimiento,
+    etapa, formaInicio, estadoActual,
+    litigantes, relaciones, historia,
+    tipo_modal: esUnificado ? 'unificado' : 'penal' // útil para debug
+  };
 }
 
   // ════════════════════════════════════════════════════════════════
@@ -978,7 +1004,7 @@ function parsearDetalle(html) {
 
           // Deep scan inmediato por causa
           if (deepScan && c.jwt) {
-            const det = await fetchDetalle(c.jwt);
+            const det = await fetchDetalle(c.jwt, c.esUnificado);
             if (det) {
               c.detalle = det;
               _detalles++;
