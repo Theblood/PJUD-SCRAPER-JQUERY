@@ -1,11 +1,12 @@
-# ⚡ PJUD-SCRAPER-JQUERY
+# ⚡ PJUD-SCRAPER
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-4.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![jQuery](https://img.shields.io/badge/jQuery-required-orange.svg)
+![Fetch API](https://img.shields.io/badge/Fetch%20API-native-00fff9.svg)
 ![Platform](https://img.shields.io/badge/platform-Browser%20Console-purple.svg)
+![Made in Chile](https://img.shields.io/badge/Made%20in-Chile%20🇨🇱-red.svg)
 
 **Sistema de extracción de datos judiciales del Poder Judicial de Chile (PJUD)**
 
@@ -14,10 +15,9 @@
 [Características](#-características) •
 [Instalación](#-instalación) •
 [Uso](#-uso) •
-[Configuración](#%EF%B8%8F-configuración) •
+[Arquitectura](#-arquitectura-v40) •
+[Configuración](#️-configuración) •
 [Documentación](#-documentación)
-
-<img src="https://img.shields.io/badge/Made%20in-Chile%20🇨🇱-red.svg" alt="Made in Chile">
 
 </div>
 
@@ -25,9 +25,11 @@
 
 ## 📋 Descripción
 
-**PJUD-SCRAPER-JQUERY** es una herramienta de web scraping desarrollada en JavaScript/jQuery que permite extraer información de causas penales desde la [Oficina Judicial Virtual](https://oficinajudicialvirtual.pjud.cl) del Poder Judicial de Chile.
+**PJUD-SCRAPER** es una herramienta de web scraping desarrollada en JavaScript nativo que permite extraer información de causas penales desde la [Oficina Judicial Virtual](https://oficinajudicialvirtual.pjud.cl) del Poder Judicial de Chile.
 
-La herramienta se ejecuta directamente en la consola del navegador, aprovechando la sesión autenticada del usuario para acceder a los datos. Cuenta con una interfaz visual estilo **Cyberpunk** con terminal en tiempo real.
+A partir de la **v4.0**, el motor fue reescrito completamente para usar **requests directas** (`fetch API`) en vez de manipulación del DOM, eliminando la dependencia de jQuery y haciendo la herramienta significativamente más rápida y confiable.
+
+Se ejecuta directamente en la consola del navegador, aprovechando la sesión autenticada del usuario. Cuenta con una interfaz visual estilo **Cyberpunk** con terminal en tiempo real.
 
 ### 🎯 Casos de Uso
 
@@ -42,77 +44,135 @@ La herramienta se ejecuta directamente en la consola del navegador, aprovechando
 
 ### 🔍 Búsqueda por Nombre
 - Búsqueda por nombre, apellido paterno y/o materno
-- Escaneo automático en **todos los tribunales penales** (~200 tribunales)
+- Escaneo automático en **todos los tribunales penales** (156 tribunales hardcodeados)
 - **Filtro por región** para búsquedas más rápidas
-- Extracción profunda (Deep Scan) de detalles de cada causa
+- Deep Scan automático con detalles completos por causa
+- Paginación automática (hasta 5 páginas por tribunal)
 
-### ⚡ Modo Turbo
-- Velocidad optimizada para conexiones rápidas
-- Tiempos de espera reducidos
-- Configurable desde la interfaz
+### ⚡ Motor de Requests Directas
+- `fetch()` nativo con `credentials: include` — usa la sesión activa del navegador
+- Pool de **N workers en paralelo** (configurable, default 3)
+- **Reintentos automáticos** con backoff exponencial ante errores o sesión expirada
+- Detección automática del identificador de versión **ADIR** desde el DOM
+- Sin dependencia de jQuery ni del estado del DOM del sitio
 
 ### 🗺️ Filtro por Región
-Busca solo en tribunales de una región específica:
-- Región Metropolitana
-- Valparaíso
-- Biobío
-- La Araucanía
-- Los Lagos
-- Y todas las demás regiones de Chile
-- Incluye **Rapa Nui** (Isla de Pascua)
+156 tribunales clasificados por región. Busca solo en:
+- Región Metropolitana (25 tribunales)
+- Valparaíso, Biobío, Araucanía, Los Lagos
+- Antofagasta, Atacama, Coquimbo, Tarapacá
+- Arica y Parinacota, O'Higgins, Maule, Ñuble
+- Los Ríos, Aysén, Magallanes, Rapa Nui
 
 ### 📊 Datos Extraídos
 
-| Campo | Descripción |
-|-------|-------------|
-| RIT | Rol Interno del Tribunal |
-| RUC | Rol Único de Causa |
-| Tribunal | Nombre del tribunal |
-| Caratulado | Partes del caso |
-| Estado | Estado actual de la causa |
-| Fecha Ingreso | Fecha de ingreso al sistema |
-| Etapa | Etapa procesal actual |
-| Forma Inicio | Cómo se inició la causa |
-| Litigantes | Lista de partes con situación de libertad |
-| Relaciones | Delitos y relaciones procesales |
+| Campo | Fuente | Descripción |
+|-------|--------|-------------|
+| RIT | Búsqueda | Rol Interno del Tribunal |
+| RUC | Búsqueda | Rol Único de Causa |
+| Tribunal | Búsqueda | Nombre del tribunal |
+| Caratulado | Búsqueda | Partes del caso |
+| Estado | Búsqueda | Estado actual de la causa |
+| Fecha Ingreso | Búsqueda | Fecha de ingreso al sistema |
+| Etapa | Deep Scan | Etapa procesal actual |
+| Forma Inicio | Deep Scan | Denuncia / Querella / etc. |
+| Estado Actual | Deep Scan | Estado detallado de la causa |
+| Litigantes | Deep Scan | Tipo, nombre y situación de libertad |
+| Relaciones | Deep Scan | Delito, nombre, estado y fecha |
+| Historia | Deep Scan | Trámites con fecha y estado |
 
 ### 🎨 Interfaz Cyberpunk
 - Panel de control visual en **pantalla completa**
-- **Terminal en tiempo real** con logs detallados
-- Tabla de resultados con **actualización en vivo**
-- Diseño **100% responsivo** para cualquier resolución
+- **Terminal en tiempo real** con logs coloreados por tipo
+- Tabla de resultados con **actualización en vivo** columna por columna
+- Barra de progreso animada
+- Stats en tiempo real: causas, tribunales, detalles, tiempo transcurrido
+- Filtro instantáneo sobre los resultados
+- Modal VER con JSON completo de cada causa
 - Tema oscuro con colores neón (cyan, magenta, verde)
-- Animaciones y efectos visuales
 
 ### 📤 Exportación
-- **CSV/Excel**: Compatible con hojas de cálculo
-- **JSON**: Para integración con APIs y bases de datos
+- **CSV**: Compatible con Excel, con columnas para hasta 3 litigantes y 2 relaciones
+- **JSON**: Objeto completo incluyendo detalle anidado
+
+---
+
+## ⚡ Arquitectura v4.0
+
+### Comparativa con v3.0
+
+| Aspecto | v3.0 (anterior) | v4.0 (actual) |
+|---------|-----------------|---------------|
+| Motor | jQuery DOM manipulation | `fetch()` nativo |
+| Dependencias | jQuery requerido | Sin dependencias externas |
+| Ejecución | Loop secuencial | Pool de N workers en paralelo |
+| DOM del sitio | Llenaba inputs, clickeaba botones | No toca el DOM del sitio |
+| Esperas | Timeouts fijos por loader | Sin esperas artificiales |
+| ADIR | Hardcodeado | Detectado dinámicamente del DOM |
+| Endpoint detalle | `unificado/modal/causaUnificado.php` | `penal/modal/causaPenal.php` |
+| Reintentos | Sin reintentos | Backoff exponencial configurable |
+| Sesión expirada | Fallo silencioso | Detectado y reintentado |
+| Velocidad (156 tribs) | ~30-40 min | ~3-5 min (conc. 3) |
+
+### Flujo de una búsqueda
+```
+iniciarBusqueda()
+  │
+  ├── detectarADIR()          ← lee document.innerHTML, encuentra ADIR_XXX
+  │
+  ├── filtrar por región      ← array hardcodeado con region por tribunal
+  │
+  └── runPool(tasks, N)       ← N workers en paralelo
+        │
+        └── por cada tribunal:
+              │
+              ├── getToken('consultaNombre')     ← grecaptcha.execute()
+              ├── fetch(consultaNombrePenal.php) ← POST con URLSearchParams
+              ├── parsearBusqueda(html)           ← DOMParser + wrap <table>
+              │
+              └── por cada causa encontrada (Deep Scan ON):
+                    ├── getToken('validate_captcha_detcau_penal')
+                    ├── fetch(causaPenal.php)     ← POST con JWT de la causa
+                    └── parsearDetalle(html)       ← #litigantesPen, #relacionesPen
+```
+
+### Detección dinámica de ADIR
+
+El PJUD rota periódicamente el identificador de versión (`ADIR_XXX`) en sus URLs. El script lo detecta automáticamente al inicio sin hacer requests adicionales:
+```javascript
+function detectarADIR() {
+  const m = document.documentElement.innerHTML.match(/ADIR_\d+/);
+  if (m) return m[0];
+  for (const s of document.scripts) {
+    const sm = (s.src || '').match(/ADIR_\d+/);
+    if (sm) return sm[0];
+  }
+  return 'ADIR_871'; // fallback
+}
+```
 
 ---
 
 ## 🚀 Instalación
 
-### Requisitos Previos
+### Requisitos
 
 1. Navegador moderno (Chrome, Firefox, Edge)
-2. Ir a [Oficina Judicial Virtual](https://oficinajudicialvirtual.pjud.cl/includes/sesion-consultaunificada.php)
-
+2. Sesión activa en [Oficina Judicial Virtual](https://oficinajudicialvirtual.pjud.cl)
+3. Sin dependencias externas — JavaScript nativo
 
 ### Pasos
 
 1. **Clonar el repositorio**
 ```bash
-git clone https://github.com/tu-usuario/PJUD-SCRAPER-JQUERY.git
+git clone https://github.com/Theblood/PJUD-SCRAPER-JQUERY.git
 ```
 
-2. **Abrir el archivo del scraper**
-   - `PJUDSCRAPER.JS` - Búsqueda por nombre (versión actual)
+2. **Copiar el contenido de** `PJUDSCRAPER.JS`
 
-3. **Copiar todo el contenido del archivo**
-
-4. **Ejecutar en el navegador**
+3. **Ejecutar en el navegador**
    - Iniciar sesión en [oficinajudicialvirtual.pjud.cl](https://oficinajudicialvirtual.pjud.cl)
-   - Ir al módulo de **Consulta de Causas**
+   - Navegar a cualquier página del dominio (no es necesario un módulo específico)
    - Abrir DevTools (`F12` o `Ctrl+Shift+I`)
    - Ir a la pestaña **Console**
    - Pegar el código y presionar `Enter`
@@ -123,199 +183,177 @@ git clone https://github.com/tu-usuario/PJUD-SCRAPER-JQUERY.git
 
 ### Búsqueda por Nombre
 
-1. **Pegar el código** en la consola del navegador
-2. Aparecerá el **panel Cyberpunk** en pantalla completa
-3. **Completar los campos**:
-   - Nombre (opcional)
-   - Apellido Paterno (opcional)
-   - Apellido Materno (opcional)
-4. **Seleccionar región** (opcional - por defecto busca en todo Chile)
-5. **Configurar opciones**:
-   - ☑ Escanear todos los tribunales
-   - ☑ Extracción profunda (Deep Scan)
-   - ☑ Modo Turbo (para conexiones rápidas)
-   - Max detalles por tribunal (0-9999)
+1. Pegar el código en la consola — aparece el **panel Cyberpunk**
+2. Completar los campos de búsqueda:
+   - Nombre, Apellido Paterno, Apellido Materno (todos opcionales, al menos uno requerido)
+   - Año (opcional — filtra por año de ingreso)
+3. Seleccionar **región** (opcional — por defecto busca en todo Chile)
+4. Configurar parámetros avanzados si es necesario
+5. Activar o desactivar **Deep Scan** (carga litigantes, relaciones e historia)
 6. Click en **⚡ INICIAR BÚSQUEDA ⚡**
 
 ### Terminal en Tiempo Real
-
-El terminal muestra todo el proceso:
 ```
-[12:34:56] > SISTEMA INICIADO
-[12:34:56] > ESPERANDO COMANDOS...
-[12:34:58] > ═══════════════════════════════════════
-[12:34:58] > INICIANDO SISTEMA DE BÚSQUEDA v3.0
-[12:34:58] > ═══════════════════════════════════════
-[12:35:00] > CONFIGURANDO COMPETENCIA PENAL...
-[12:35:02] > 200 TRIBUNALES CARGADOS
-[12:35:02] > FILTRO REGIÓN: RM => 45/200 TRIBUNALES
-[12:35:02] > OBJETIVO: JUAN GONZÁLEZ SILVA
-[12:35:02] > INICIANDO ESCANEO...
-[12:35:03] > SCAN [1/45]: Juzgado de Garantía de Santiago
-[12:35:08] > 3 CAUSAS ENCONTRADAS
-[12:35:08] > DEEP SCAN: Ordinaria-1234-2024
-[12:35:10] > DETALLE OK: Ordinaria-1234-2024 (lit=2, rel=1)
+[12:35:00] > ═══════════════════════════════════
+[12:35:00] > CYBER SCRAPER v4.0 — REQUEST DIRECTO
+[12:35:00] > OBJETIVO: JUAN PEREZ PEREZ
+[12:35:00] > ADIR DETECTADO: ADIR_871
+[12:35:00] > TRIBUNALES: 156 | REGIÓN: ALL
+[12:35:00] > DEEP SCAN: ON | CONCURRENCIA: 3
+[12:35:00] > ═══════════════════════════════════
+[12:35:01] > → SCAN: Juzgado De Letras Y Garantía De Pozo Almonte
+[12:35:02] > ✦ Ordinaria-1411-2015 — MINISTERIO PUBLICO C/ JUAN...
+[12:35:02] > 📋 Ordinaria-1411-2015 — Porte de arma cortante...
+[12:35:04] > ✓ Juzgado De Letras Y Garantía De Pozo Almonte
 ```
 
 ---
 
 ## ⚙️ Configuración
 
-### Parámetros de Velocidad (CFG)
-
-El código incluye una sección de configuración al inicio:
-
+### Parámetros principales
 ```javascript
-const CFG = {
-  // Modo Turbo por defecto
-  turboDefault: true,
-
-  // Delays (milisegundos)
-  delay: {
-    select: { turbo: 80, normal: 300 },       // Después de cambiar tribunal
-    afterLoad: { turbo: 160, normal: 450 },   // Post-loader para render
-    afterCloseModal: { turbo: 120, normal: 320 } // Después de cerrar modal
-  },
-
-  // Timeout por tribunal
-  timeoutNombre: { turbo: 25000, normal: 30000 },
-
-  // Límite de detalles por tribunal
-  maxDetallesDefault: 10,
-
-  // Render liviano mientras corre
-  liteRender: true
-};
+const CONCURRENCY       = 3;    // Workers en paralelo (recomendado: 3-5)
+const MAX_RETRIES       = 5;    // Reintentos ante error o captcha expirado
+const RETRY_BASE        = 500;  // ms base para backoff (500→1000→2000→4000→8000)
 ```
 
-### Opciones de Interfaz
+Todos son editables desde la interfaz sin tocar el código.
 
-| Opción | Descripción | Default |
-|--------|-------------|---------|
-| Modo Turbo | Reduce tiempos de espera | Activado |
-| Max Detalles | Límite de deep scan por tribunal | 10 |
-| Escanear Todos | Recorre todos los tribunales | Activado |
-| Deep Scan | Extrae detalles completos | Activado |
+### Concurrencia recomendada
 
-### Filtro por Región
+| Valor | Velocidad | Riesgo captcha |
+|-------|-----------|----------------|
+| 1-2 | Lenta | Muy bajo |
+| 3 | Óptima ✅ | Bajo |
+| 5 | Rápida | Medio |
+| 10+ | Muy rápida | Alto — posibles redirects de sesión |
 
-Keywords utilizados para filtrar tribunales por región:
+### Deep Scan
 
-```javascript
-const REGION_KEYWORDS = {
-  rm: ['santiago', 'colina', 'puente alto', 'san bernardo', 'melipilla'...],
-  valpo: ['valparaiso', 'vina del mar', 'quilpue', 'san antonio'...],
-  bio: ['concepcion', 'talcahuano', 'los angeles', 'coronel'...],
-  // ... más regiones
-};
-```
+Con Deep Scan activado, por cada causa encontrada se hace una segunda request a `causaPenal.php` para obtener litigantes, relaciones e historia. Esto duplica aproximadamente el tiempo total pero enriquece mucho el CSV/JSON exportado.
 
 ---
 
-## 📄 Ejemplo de Salida
-
-### JSON
-
+## 📄 Ejemplo de Salida JSON
 ```json
 {
-  "rit": "Ordinaria-1234-2024",
-  "ruc": "2400012345-6",
-  "tribunal": "Juzgado de Garantía de Santiago",
-  "caratulado": "GONZÁLEZ/SILVA",
-  "estado": "Ingresada",
-  "fecha_ingreso": "15/12/2024",
+  "rit": "Ordinaria-1411-2015",
+  "ruc": "1500828482-K",
+  "tribunal": "Juzgado De Letras Y Garantía De Pozo Almonte",
+  "caratulado": "MINISTERIO PUBLICO C/ JUAN HOMERO PEREZ PEREZ",
+  "estado": "Fallada o Concluida",
+  "fecha_ingreso": "31/08/2015",
+  "jwt": "eyJ0eXAiOiJKV1Qi...",
   "detalle": {
-    "informacion_general": {
-      "rit": "Ordinaria-1234-2024",
-      "ruc": "2400012345-6",
-      "fecha_ingreso": "15/12/2024",
-      "estado_actual": "Vigente",
-      "etapa": "Investigación",
-      "forma_inicio": "Denuncia"
-    },
+    "rit": "Ordinaria-2858-2024",
+    "ruc": "1500828482-K",
+    "etapa": "Inicio de la acción.",
+    "formaInicio": "Denuncia",
+    "estadoActual": "Concluida.",
+    "procedimiento": "Ordinario",
     "litigantes": [
       {
-        "tipo": "Imputado",
-        "nombre": "JUAN GONZÁLEZ SILVA",
-        "situacion_libertad": "Libre"
+        "tipo": "Denunciado.",
+        "nombre": "JUAN HOMERO PEREZ PEREZ",
+        "situacion": "Libre."
       },
       {
-        "tipo": "Víctima",
-        "nombre": "PEDRO MARTÍNEZ ROJAS",
-        "situacion_libertad": ""
+        "tipo": "Fiscal.",
+        "nombre": "VALDÉS JERIA JUAN ELÍAS",
+        "situacion": ""
       }
     ],
     "relaciones": [
       {
-        "nombre": "JUAN GONZÁLEZ SILVA",
-        "delito": "Hurto Simple",
-        "estado_relacion": "Vigente",
-        "fecha_cambio_estado": "15/12/2024"
+        "nombre": "PEREZ PEREZ JUAN HOMERO",
+        "delito": "Porte de arma cortante o punzante. Art. 288 BIS, Código Penal",
+        "estado_relacion": "Concluida",
+        "fecha_cambio_estado": "31/08/2015"
       }
     ],
-    "esta_reservada": false
+    "historia": [
+      {
+        "tipo": "Audiencia",
+        "observacion": "Audiencia control de la detención",
+        "fecha": "31/08/2015",
+        "estado": "Realizada",
+        "fecha_cambio_estado": "31/08/2015"
+      }
+    ]
   }
 }
 ```
 
 ### CSV/Excel
 
-El CSV incluye columnas separadas para:
-- Datos básicos de la causa
-- Litigante 1 y 2 (tipo, nombre)
-- Relación 1 y 2 (delito, nombre, estado)
+El CSV incluye columnas separadas para datos básicos + hasta 3 litigantes + 2 relaciones con todos sus campos:
+```
+RIT, Tribunal, RUC, Caratulado, Fecha Ingreso, Estado,
+Etapa, Procedimiento,
+Lit1 Tipo, Lit1 Nombre, Lit1 Situación,
+Lit2 Tipo, Lit2 Nombre, Lit2 Situación,
+Lit3 Tipo, Lit3 Nombre, Lit3 Situación,
+Rel1 Delito, Rel1 Nombre, Rel1 Estado, Rel1 Fecha,
+Rel2 Delito, Rel2 Nombre, Rel2 Estado, Rel2 Fecha
+```
 
 ---
 
 ## 🔧 Solución de Problemas
 
-### Error: "jQuery no está disponible"
-
-El portal PJUD carga jQuery automáticamente. Si aparece este error:
-1. Espera a que la página cargue completamente
-2. Recarga la página e intenta nuevamente
-3. Asegúrate de estar en el módulo de Consulta de Causas
-
 ### La búsqueda no encuentra resultados
 
-1. Verifica que los datos de búsqueda sean correctos
-2. Asegúrate de estar en el módulo correcto
-3. Verifica tu sesión (puede haber expirado)
-4. Prueba desactivando el filtro de región
+1. Verifica que el nombre esté escrito correctamente en mayúsculas
+2. Prueba buscando solo con apellido paterno
+3. Verifica que la sesión del PJUD esté activa
+4. Revisa el terminal — si aparecen `[captcha]` en los reintentos, baja la concurrencia a 2-3
 
-### Timeout en tribunales
+### Aparece redirect de sesión (`parent.window.open`)
 
-Algunos tribunales pueden tardar más:
-1. Desactiva el **Modo Turbo**
-2. El sistema continuará automáticamente con el siguiente
-3. Los timeouts se registran en el terminal
+El servidor detecta el token de recaptcha como inválido o expirado. El script lo detecta automáticamente y reintenta con backoff. Si es recurrente:
+- Baja `CONCURRENCY` a 2
+- Sube `RETRY_BASE` a 1000
 
-### El modal de detalle no carga
+### El detalle aparece en blanco
 
-1. Aumenta el valor de `maxDetalles` a 0 para desactivar Deep Scan
-2. Verifica que la causa tenga el ícono de detalle (lupa)
-3. Desactiva Modo Turbo para dar más tiempo
+Verifica que el ADIR se detectó correctamente — debe aparecer en el terminal al inicio como `ADIR DETECTADO: ADIR_XXX`. Si el PJUD rotó el identificador y el script no lo encontró en el DOM, recarga la página del PJUD e intenta de nuevo.
 
-### El filtro de región no incluye mi tribunal
+### Algunos tribunales devuelven error
 
-Puedes agregar keywords al objeto `REGION_KEYWORDS` en el código:
-```javascript
-REGION_KEYWORDS.turegion = ['ciudad1', 'ciudad2', ...];
-```
+Normal — algunos tribunales pequeños tienen timeouts ocasionales. El sistema los reintenta automáticamente hasta `MAX_RETRIES` veces y continúa con el siguiente si falla definitivamente. Los fallos se registran en rojo en el terminal.
 
 ---
 
 ## 📁 Estructura del Proyecto
-
 ```
-PJUD-SCRAPER-JQUERY/
-├── README.md                   # Este archivo
-├── LICENSE                     # Licencia MIT
-├── scraper-nombre-v3.js        # Scraper principal (búsqueda por nombre)
+PJUD-SCRAPER/
+├── README.md          # Este archivo
+├── LICENSE            # Licencia MIT
+├── PJUDSCRAPER.JS     # Script principal v4.0
 └── examples/
-    ├── output-ejemplo.json     # Ejemplo de salida JSON
-    └── output-ejemplo.csv      # Ejemplo de salida CSV
+    ├── output.json    # Ejemplo de salida JSON
+    └── output.csv     # Ejemplo de salida CSV
 ```
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Requests directas sin dependencia del DOM
+- [x] Detección dinámica de ADIR
+- [x] Pool de concurrencia con N workers
+- [x] Reintentos con backoff exponencial
+- [x] Detección de redirect de sesión expirada
+- [x] Deep scan con endpoint penal correcto (`causaPenal.php`)
+- [x] Filtro por región hardcodeado (sin depender del select del sitio)
+- [x] Export CSV enriquecido con litigantes y relaciones
+- [x] Export JSON completo
+- [ ] Soporte para otras competencias (Civil, Laboral, Familia)
+- [ ] Búsqueda por RUC/RIT directo
+- [ ] Exportación a PDF
+- [ ] Sistema de caché local (IndexedDB)
+- [ ] Notificaciones de nuevas causas
 
 ---
 
@@ -330,59 +368,42 @@ PJUD-SCRAPER-JQUERY/
 | Gestión de casos propios (abogados) | Venta de datos personales |
 | Análisis estadístico de datos públicos | Uso para acoso o persecución |
 
-El usuario es responsable del uso que le dé a esta herramienta.
+El usuario es responsable del uso que le dé a esta herramienta. El script respeta la sesión autenticada del usuario y no implementa mecanismos para evadir controles de acceso.
 
 ---
 
 ## 🤝 Contribuir
 
-Las contribuciones son bienvenidas:
-
 1. Fork el repositorio
 2. Crea una rama (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -m 'Agrega nueva funcionalidad'`)
+3. Commit tus cambios siguiendo [Conventional Commits](https://www.conventionalcommits.org/)
 4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
 5. Abre un Pull Request
-
-### Ideas para Contribuir
-
-- [ ] Soporte para otras competencias (Civil, Laboral, Familia)
-- [ ] Búsqueda por RUC/RIT directo
-- [ ] Exportación a PDF
-- [ ] Sistema de caché local
-- [ ] Notificaciones de nuevas causas
-- [ ] Modo oscuro/claro
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
-
----
-
-## 👨‍💻 Autor
-
-Desarrollado con ❤️ en Chile 🇨🇱
+MIT — ver [LICENSE](LICENSE) para más detalles.
 
 ---
 
 ## 🙏 Agradecimientos
 
-- [Poder Judicial de Chile](https://www.pjud.cl) - Por proveer acceso a información pública
-- [jQuery](https://jquery.com) - Librería JavaScript utilizada
-- [Share Tech Mono](https://fonts.google.com/specimen/Share+Tech+Mono) - Fuente Cyberpunk
+- [Poder Judicial de Chile](https://www.pjud.cl) — Por proveer acceso a información pública
+- [Share Tech Mono](https://fonts.google.com/specimen/Share+Tech+Mono) — Fuente Cyberpunk
 
 ---
 
 <div align="center">
 
-### ⚡ CYBER SCRAPER v3.0 ⚡
+### ⚡ CYBER SCRAPER v4.0 ⚡
 
-**Búsqueda Judicial Avanzada**
+**Requests Directas · Sin Dependencias · Pool Concurrente**
 
 ![Cyberpunk](https://img.shields.io/badge/Style-Cyberpunk-ff00de.svg)
 ![Terminal](https://img.shields.io/badge/Terminal-Real%20Time-00ff00.svg)
-![Responsive](https://img.shields.io/badge/UI-Responsive-00fff9.svg)
+![Fetch](https://img.shields.io/badge/Engine-Fetch%20API-00fff9.svg)
+![Concurrent](https://img.shields.io/badge/Mode-Concurrent%20Pool-a371f7.svg)
 
 </div>
