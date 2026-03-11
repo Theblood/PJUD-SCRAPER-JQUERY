@@ -136,21 +136,6 @@ iniciarBusqueda()
                     └── parsearDetalle(html)       ← #litigantesPen, #relacionesPen
 ```
 
-### Detección dinámica de ADIR
-
-El PJUD rota periódicamente el identificador de versión (`ADIR_XXX`) en sus URLs. El script lo detecta automáticamente al inicio sin hacer requests adicionales:
-```javascript
-function detectarADIR() {
-  const m = document.documentElement.innerHTML.match(/ADIR_\d+/);
-  if (m) return m[0];
-  for (const s of document.scripts) {
-    const sm = (s.src || '').match(/ADIR_\d+/);
-    if (sm) return sm[0];
-  }
-  return 'ADIR_871'; // fallback
-}
-```
-
 ---
 
 ## 🚀 Instalación
